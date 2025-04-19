@@ -2,25 +2,26 @@ import pandas as pd
 import sqlite3
 import os
 
-excel_file_path = r"C:/Users/Literataa/Downloads/Struktur_Data_Dataset_Kelas_A_B_C (40).xlsx"
+# --- Variabel Konfigurasi ---
+excel_file_path = r"C:\Users\Literataa\Downloads\Struktur_Data_Dataset_Kelas_A_B_C (46).xlsx"
 excel_sheet_name = 'Sheet1'
-
 sqlite_db_path = 'papers_database.db'
 table_name = 'papers'
-
-if_exists_option = 'replace'
-
-excel_header_row = 1
+if_exists_option = 'replace' # Untuk replace tabel jika sudah ada
+excel_header_row = 0 # Baris di Excel tempat header berada (dimulai dari index 0)
 
 def convert_xlsx_to_sqlite(excel_path, sheet_name, header_row, db_path, table_name, if_exists='fail'):
+    """Membaca data dari file Excel dan menyimpannya ke tabel SQLite."""
     print(f"Membaca file Excel: {excel_path}")
     print(f"Menggunakan Sheet: '{sheet_name or 'Default'}'")
     print(f"Mencari Header di baris Excel ke-{header_row + 1} (indeks {header_row})")
 
     try:
+        # Membaca file Excel menggunakan Pandas
         df = pd.read_excel(excel_path, sheet_name=sheet_name, header=header_row)
         print(f"Berhasil membaca {len(df)} baris data dari Excel.")
 
+        # Membersihkan nama kolom
         original_columns = df.columns.tolist()
         df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_').str.replace(r'[^a-z0-9_]', '', regex=True)
         cleaned_columns = df.columns.tolist()
@@ -31,6 +32,7 @@ def convert_xlsx_to_sqlite(excel_path, sheet_name, header_row, db_path, table_na
         print(cleaned_columns)
         print("-" * 30)
 
+        # Menghapus kolom 'unnamed' jika ada setelah pembersihan
         columns_to_drop = ['unnamed_11', 'unnamed_12']
         existing_columns_to_drop = [col for col in columns_to_drop if col in df.columns]
 
@@ -42,43 +44,59 @@ def convert_xlsx_to_sqlite(excel_path, sheet_name, header_row, db_path, table_na
             print(df.columns.tolist())
             print("-" * 30)
         else:
-            print(f"Kolom {columns_to_drop} tidak ditemukan dalam data setelah pembersihan, tidak ada yang dihapus.")
+            print(f"Kolom {columns_to_drop} tidak ditemukan, tidak ada yang dihapus.")
             print("-" * 30)
 
+        # Peringatan jika ada nama kolom kosong setelah pembersihan
         if '' in df.columns:
-             print("PERINGATAN: Beberapa nama kolom menjadi kosong setelah dibersihkan/dihapus. Periksa header Excel Anda.")
+             print("PERINGATAN: Ada nama kolom yang kosong setelah dibersihkan. Periksa header Excel.")
 
     except FileNotFoundError:
         print(f"Error: File Excel tidak ditemukan di '{excel_path}'")
         return
-    except IndexError:
-        print(f"Error: Tidak dapat menemukan header di baris ke-{header_row + 1}. Periksa 'excel_header_row'.")
-        return
+    except ValueError as ve: # Menampilkan error jika sheet tidak ada
+         if 'Worksheet' in str(ve) and 'not found' in str(ve):
+             print(f"Error: Sheet '{sheet_name}' tidak ditemukan di '{excel_path}'.")
+         else:
+             print(f"Error saat membaca file Excel: {ve}")
+         return
     except Exception as e:
         print(f"Error saat membaca file Excel: {e}")
         return
 
+    conn = None 
     print(f"\nMenyambungkan ke database SQLite: {db_path}")
     try:
+        # Membuat koneksi ke database SQLite
         conn = sqlite3.connect(db_path)
+        cursor = conn.cursor() 
 
         print(f"Menulis data ke tabel '{table_name}' (Mode: {if_exists})...")
+        # Menulis DataFrame ke tabel SQLite
         df.to_sql(table_name, conn, if_exists=if_exists, index=False)
 
         print(f"Berhasil mengonversi data ke tabel '{table_name}' di '{db_path}'.")
+        conn.commit() # Commit perubahan
 
     except sqlite3.Error as e:
         print(f"Error SQLite: {e}")
+        if conn:
+            conn.rollback() # Rollback jika error
     except Exception as e:
         print(f"Error saat menulis ke database: {e}")
+        if conn:
+            conn.rollback()
     finally:
-        if 'conn' in locals() and conn:
+        # Menutup koneksi database
+        if conn:
             conn.close()
             print("Koneksi database ditutup.")
 
+# --- Eksekusi Konversi ---
 if __name__ == "__main__":
+    # Cek apakah file Excel ada
     if not os.path.exists(excel_file_path):
-         print(f"PERINGATAN: File Excel tidak ditemukan di '{excel_file_path}'. Pastikan path sudah benar!")
+         print(f"KESALAHAN FATAL: File Excel tidak ditemukan di '{excel_file_path}'. Skrip dihentikan.")
     else:
         convert_xlsx_to_sqlite(
             excel_path=excel_file_path,
@@ -88,3 +106,4 @@ if __name__ == "__main__":
             table_name=table_name,
             if_exists=if_exists_option
         )
+        print("\nProses konversi selesai.")
