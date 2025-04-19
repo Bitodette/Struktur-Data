@@ -1,315 +1,278 @@
 import sqlite3
-import time
+# import time # Dihapus
 import traceback
 import os
 import sys
 
-sqlite_db_path = 'papers_database.db'
-table_name = 'papers'
-
+# --- Konfigurasi (Sama seperti sebelumnya) ---
+SQLITE_DB_PATH = 'papers_database.db'
+TABLE_NAME = 'papers'
 ALL_DATABASE_COLUMNS = [
-    "no",
-    "nim",
-    "nama_mahasiswa",
-    "sumber_database",
+    "no", "nim", "nama_mahasiswa", "sumber_database",
     "fokus_kata_kunci_pilih_no1_atau_2_atau_3_sesuai_yg_ada_di_soal",
-    "judul_paper",
-    "tahun_terbit",
-    "nama_penulis",
+    "judul_paper", "tahun_terbit", "nama_penulis",
     "abstrak_langusung_copas_dari_paper",
-    "kesimpulan_langusung_copas_dari_paper",
-    "link_paper"
+    "kesimpulan_langusung_copas_dari_paper", "link_paper"
 ]
-
-COL_JUDUL = 'judul_paper'
+SEARCHABLE_COLUMNS = {
+    '1': 'judul_paper',
+    '2': 'tahun_terbit',
+    '3': 'nama_penulis'
+}
+COLUMN_DISPLAY_LABELS = {
+    "fokus_kata_kunci_pilih_no1_atau_2_atau_3_sesuai_yg_ada_di_soal": "Fokus Kata Kunci",
+    "abstrak_langusung_copas_dari_paper": "Abstrak",
+    "kesimpulan_langusung_copas_dari_paper": "Kesimpulan"
+}
+MULTILINE_COLUMNS = {
+    "abstrak_langusung_copas_dari_paper",
+    "kesimpulan_langusung_copas_dari_paper"
+}
 COL_TAHUN = 'tahun_terbit'
-COL_PENULIS = 'nama_penulis'
 
 def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system('cls')
 
 def connect_db(db_path):
     try:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        print(f"Berhasil terhubung ke database: {db_path}")
+        print(f"Berhasil terhubung ke db: {db_path}")
         return conn
     except sqlite3.Error as e:
-        print(f"\nError koneksi database: {e}")
-        print(f"Pastikan file '{db_path}' ada dan bisa diakses.")
+        print(f"\nError koneksi db: {e}\nPastikan file '{db_path}' ada.")
         return None
 
 def fetch_all_data(conn, table, columns_to_fetch):
-    if not conn:
-        print("Koneksi database tidak tersedia.")
-        return []
+    if not conn: return []
     cursor = conn.cursor()
-    safe_columns = [f'"{col}"' for col in columns_to_fetch]
-    cols_string = ", ".join(safe_columns)
+    cols_string = ", ".join([f'"{col}"' for col in columns_to_fetch])
     query = f'SELECT {cols_string} FROM "{table}"'
-    print(f"Mengambil data dari tabel '{table}' (Kolom: {len(columns_to_fetch)})...")
+    print(f"Mengambil data dari tabel '{table}'...")
     try:
         cursor.execute(query)
         data = [dict(row) for row in cursor.fetchall()]
-        print(f"Berhasil mengambil {len(data)} baris data.")
         return data
     except sqlite3.Error as e:
-        print(f"\nError saat mengambil data: {e}")
-        error_msg = str(e).lower()
-        if "no such column" in error_msg:
-             print(f"!!! KESALAHAN NAMA KOLOM? Periksa list `ALL_DATABASE_COLUMNS`.")
-        elif "no such table" in error_msg:
-             print(f"!!! KESALAHAN NAMA TABEL? Periksa `table_name` ('{table}').")
+        print(f"\nError mengambil data: {e}")
+        if "no such column" in str(e).lower(): print("Periksa nama kolom")
+        elif "no such table" in str(e).lower(): print(f"Periksa nama tabel '{table}")
         return []
 
+#linear
 def linear_search(data_list, search_term, column_key):
     results = []
     search_term_clean = str(search_term).strip().lower()
-    if not search_term_clean:
-        print("Kata kunci pencarian kosong.")
-        return []
-
-    start_time = time.time()
-    count = 0
+    if not search_term_clean: return []
     for item in data_list:
-        if column_key in item and item[column_key] is not None:
-            value_str_clean = str(item[column_key]).strip().lower()
-            if search_term_clean in value_str_clean:
-                results.append(item)
-        count += 1
-
-    end_time = time.time()
-    print(f"Linear Search selesai dalam {end_time - start_time:.6f} detik.")
+        value = item.get(column_key)
+        if value is not None and search_term_clean in str(value).strip().lower():
+            results.append(item)
+    print(f"Linear Search done.")
     return results
 
 def binary_search(sorted_data_list, search_term, column_key):
     results = []
-    low = 0
     if not sorted_data_list: return []
-    high = len(sorted_data_list) - 1
+    low, high = 0, len(sorted_data_list) - 1
     found_index = -1
 
     try:
-        if column_key == COL_TAHUN:
-            try:
-                search_term_val = int(search_term)
-            except ValueError:
-                search_term_val = float(search_term)
-        else:
-            search_term_val = str(search_term).strip().lower()
+        search_term_val = float(search_term) if column_key == COL_TAHUN else str(search_term).strip().lower()
     except ValueError:
-         print(f"\nError: Input '{search_term}' tidak valid untuk kolom '{column_key}'.")
-         if column_key == COL_TAHUN: print("Kolom tahun memerlukan input angka (integer atau desimal).")
-         return []
+        print(f"\nError: Input '{search_term}' tidak valid untuk kolom '{column_key}'.")
+        if column_key == COL_TAHUN: print("Kolom tahun memerlukan angka.")
+        return []
 
-    start_time = time.time()
     while low <= high:
         mid = (low + high) // 2
         item = sorted_data_list[mid]
-
         try:
-            original_mid_value = item.get(column_key)
-            if original_mid_value is None:
+            mid_value = item.get(column_key)
+            if mid_value is None:
                  if mid > low: high = mid - 1
                  elif mid < high: low = mid + 1
                  else: break
                  continue
-
-            if column_key == COL_TAHUN:
-                try: mid_val = int(original_mid_value)
-                except ValueError: mid_val = float(original_mid_value)
-            else:
-                mid_val = str(original_mid_value).strip().lower()
-
+            mid_val_cmp = float(mid_value) if column_key == COL_TAHUN else str(mid_value).strip().lower()
         except (ValueError, TypeError):
              if mid > low: high = mid - 1
              elif mid < high: low = mid + 1
              else: break
              continue
 
-        if mid_val == search_term_val:
+        if mid_val_cmp == search_term_val:
             found_index = mid
             break
-        elif mid_val < search_term_val:
+        elif mid_val_cmp < search_term_val:
             low = mid + 1
         else:
             high = mid - 1
 
     if found_index != -1:
+        def check_match(index):
+            if 0 <= index < len(sorted_data_list):
+                item = sorted_data_list[index]
+                try:
+                    val = item.get(column_key)
+                    if val is None: return False
+                    item_val_cmp = float(val) if column_key == COL_TAHUN else str(val).strip().lower()
+                    return item_val_cmp == search_term_val
+                except (ValueError, TypeError):
+                    return False
+            return False
+
         results.append(sorted_data_list[found_index])
-
         i = found_index - 1
-        while i >= 0:
-            item = sorted_data_list[i]
-            try:
-                item_val_orig = item.get(column_key)
-                if item_val_orig is None: i -= 1; continue
-                if column_key == COL_TAHUN:
-                    try: item_val = int(item_val_orig)
-                    except ValueError: item_val = float(item_val_orig)
-                else: item_val = str(item_val_orig).strip().lower()
-
-                if item_val == search_term_val:
-                    results.append(item)
-                    i -= 1
-                else:
-                    break
-            except (ValueError, TypeError):
-                i -= 1
+        while check_match(i):
+            results.append(sorted_data_list[i])
+            i -= 1
         i = found_index + 1
-        while i < len(sorted_data_list):
-            item = sorted_data_list[i]
-            try:
-                item_val_orig = item.get(column_key)
-                if item_val_orig is None: i += 1; continue
-                if column_key == COL_TAHUN:
-                    try: item_val = int(item_val_orig)
-                    except ValueError: item_val = float(item_val_orig)
-                else: item_val = str(item_val_orig).strip().lower()
+        while check_match(i):
+            results.append(sorted_data_list[i])
+            i += 1
 
-                if item_val == search_term_val:
-                    results.append(item)
-                    i += 1
-                else:
-                    break
-            except (ValueError, TypeError):
-                 i += 1
-
-    end_time = time.time()
-    print(f"Binary Search selesai dalam {end_time - start_time:.6f} detik.")
+    print(f"Binary Search done.")
     return results
 
 def sort_key_func(item, sort_column_key):
     value = item.get(sort_column_key)
-    processed_value = value
+    if value is None:
+        return float('inf') if sort_column_key == COL_TAHUN else ""
+    try:
+        if sort_column_key == COL_TAHUN:
+            return float(value)
+        elif isinstance(value, str):
+            return value.strip().lower()
+        return value
+    except (ValueError, TypeError):
+        return float('inf') if sort_column_key == COL_TAHUN else ""
 
-    if value is not None:
-        try:
-            if sort_column_key == COL_TAHUN:
-                try: processed_value = int(value)
-                except ValueError: processed_value = float(value)
-            elif isinstance(value, str):
-                processed_value = value.strip().lower()
-        except (ValueError, TypeError):
-             if sort_column_key == COL_TAHUN: return float('inf')
-             else: return ""
-    else:
-        if sort_column_key == COL_TAHUN: return float('inf')
-        else: return ""
-
-    return processed_value
-
-if __name__ == "__main__":
+def main():
     clear_screen()
-    print("--- Program Pencarian Data Paper (Menampilkan Semua Kolom) ---")
+    print("--- Program Pencarian Data Paper ---")
 
-    conn = connect_db(sqlite_db_path)
-    all_data = []
-    if conn:
-        all_data = fetch_all_data(conn, table_name, ALL_DATABASE_COLUMNS)
-        conn.close()
-        print("Koneksi database ditutup.")
-
-    if not all_data:
-        print("\nTidak ada data yang bisa diproses. Program berhenti.")
+    conn = connect_db(SQLITE_DB_PATH)
+    if not conn:
         input("Tekan Enter untuk keluar...")
         sys.exit()
-    else:
-        while True:
-            clear_screen()
-            print("\n--- Menu Pencarian ---")
-            print("Pilih kolom dasar untuk pencarian:")
-            print(f"1. Judul ({COL_JUDUL})")
-            print(f"2. Tahun ({COL_TAHUN})")
-            print(f"3. Penulis ({COL_PENULIS})")
-            choice_col = input("Masukkan nomor kolom (atau ketik 'q' untuk keluar): ").strip()
 
-            if choice_col.lower() == 'q':
-                break
+    all_data = fetch_all_data(conn, TABLE_NAME, ALL_DATABASE_COLUMNS)
+    conn.close()
+    print("Koneksi database ditutup.")
 
-            search_key = ""
-            if choice_col == '1': search_key = COL_JUDUL
-            elif choice_col == '2': search_key = COL_TAHUN
-            elif choice_col == '3': search_key = COL_PENULIS
-            else:
-                print("Pilihan kolom tidak valid.")
-                input("Tekan Enter untuk mencoba lagi...")
-                continue
+    if not all_data:
+        print("\nTidak ada data. Program berhenti.")
+        input("Tekan Enter untuk keluar...")
+        sys.exit()
 
-            print(f"\nAnda memilih mencari berdasarkan: {search_key.replace('_',' ').title()}")
-            search_value = input(f"Masukkan kata kunci pencarian untuk '{search_key}': ").strip()
+    sorted_data_cache = {}
 
-            if not search_value:
-                 print("Kata kunci tidak boleh kosong.")
-                 input("Tekan Enter untuk mencoba lagi...")
-                 continue
+    while True:
+        clear_screen()
+        print("Menu")
+        print("Pilih kolom dasar untuk pencarian:")
+        for key, col_name in SEARCHABLE_COLUMNS.items():
+            print(f"{key}. {col_name.replace('_',' ').title()}")
+        choice_col = input("Masukkan nomor kolom (atau 'q' untuk keluar): ").strip()
 
-            print("\nPilih metode pencarian:")
-            print("1. Linear Search (Mencari 'mengandung' kata kunci)")
-            print("2. Binary Search (Mencari 'sama persis' setelah diurutkan, case-insensitive)")
-            choice_method = input("Masukkan pilihan metode (1/2): ").strip()
+        if choice_col.lower() == 'q':
+            break
 
-            results = []
-            search_start_time = time.time()
+        search_key = SEARCHABLE_COLUMNS.get(choice_col)
+        if not search_key:
+            print("Pilihan kolom tidak valid.")
+            input("Tekan Enter...")
+            continue
 
-            if choice_method == '1':
-                print("\nMelakukan Linear Search...")
-                results = linear_search(all_data, search_value, search_key)
-            elif choice_method == '2':
-                print("\nMelakukan Binary Search...")
+        print(f"\nMencari berdasaran: {search_key.replace('_',' ').title()}")
+        search_value = input(f"Masukkan kata kunci pencarian: ").strip()
+        if not search_value:
+            print("Kata kunci tidak boleh kosong.")
+            input("Tekan Enter...")
+            continue
+
+        print("\nPilih metode pencarian:")
+        print("1. Linear Search")
+        print("2. Binary Search")
+        choice_method = input("Masukkan pilihan metode (1/2): ").strip()
+
+        results = []
+
+        if choice_method == '1':
+            print("\nMelakukan Linear Search...")
+            results = linear_search(all_data, search_value, search_key)
+        elif choice_method == '2':
+            print("\nMelakukan Binary Search...")
+            if search_key not in sorted_data_cache:
                 print(f"Mengurutkan data berdasarkan '{search_key}'...")
-                start_sort_time = time.time()
                 try:
-                    sorted_data = sorted(all_data, key=lambda item: sort_key_func(item, search_key))
-                    end_sort_time = time.time()
-                    print(f"Data diurutkan dalam {end_sort_time - start_sort_time:.4f} detik.")
-
-                    results = binary_search(sorted_data, search_value, search_key)
+                    def sort_func(item):
+                        return sort_key_func(item, search_key)
+                    sorted_data_cache[search_key] = sorted(all_data, key=sort_func)
+                    print(f"Data diurutkan.")
                 except Exception as e:
-                      print(f"\nError saat sorting atau persiapan binary search: {e}")
-                      print("Traceback:")
-                      traceback.print_exc()
-                      print("\nBinary search tidak dapat dilanjutkan.")
-                      input("Tekan Enter untuk kembali ke menu...")
-                      continue
+                    print(f"\nError saat sorting: {e}")
+                    traceback.print_exc()
+                    input("Tekan Enter...")
+                    continue
             else:
-                print("Pilihan metode tidak valid.")
-                input("Tekan Enter untuk mencoba lagi...")
-                continue
+                print(f"Menggunakan data terurut dari cache untuk '{search_key}'.")
 
-            search_end_time = time.time()
+            results = binary_search(sorted_data_cache[search_key], search_value, search_key)
+        else:
+            print("Pilihan metode tidak valid.")
+            input("Tekan Enter...")
+            continue
 
-            clear_screen()
-            print(f"\n--- Hasil Pencarian untuk '{search_value}' di kolom '{search_key}' ---")
-            print(f"(Metode: {'Linear' if choice_method == '1' else 'Binary'} Search, Waktu: {search_end_time - search_start_time:.4f} detik)")
+        clear_screen()
+        print(f"Hasil Pencarian ('{search_value}' di '{search_key}')")
+        if choice_method == '1':
+            print("(Metode: Linear Search)")
+        else:
+            print("(Metode: Binary Search)")
 
-            if results:
-                print(f"Ditemukan {len(results)} hasil:")
+        if results:
+            print(f"Ditemukan {len(results)} hasil:")
+            try:
+                def sort_by_no(item):
+                    return item.get('no', 0)
+                results.sort(key=sort_by_no)
+            except Exception:
+                pass
 
-                try:
-                    results.sort(key=lambda item: item.get('no', 0))
-                except Exception as sort_err:
-                    print(f"(Peringatan: Gagal mengurutkan hasil akhir - {sort_err})")
+            for i, row in enumerate(results):
+                print(f"\n===== #{i + 1} =====")
+                for col_name in ALL_DATABASE_COLUMNS:
+                    value = row.get(col_name)
+                    value_display = 'N/A'
 
-                for i, row in enumerate(results):
-                    print(f"\n===== Hasil #{i + 1} =====")
-                    for col_name in ALL_DATABASE_COLUMNS:
-                        value = row.get(col_name, '[Kolom Tidak Ditemukan]')
-                        value_display = value if value is not None else 'N/A'
-
-                        label = col_name.replace('_', ' ').title()
-
-                        if col_name in ["abstrak_langusung_copas_dari_paper", "kesimpulan_langusung_copas_dari_paper"]:
-                            print(f"\n{label}:")
-                            print(f"  {value_display}")
+                    if value is not None:
+                        if col_name == 'tahun_terbit':
+                            try:
+                                value_display = int(float(value))
+                            except (ValueError, TypeError):
+                                value_display = value
                         else:
-                            print(f"{label}: {value_display}")
+                            value_display = value
 
-                    print("=" * 25)
-            else:
-                print("\nTidak ada hasil yang cocok ditemukan.")
+                    default_label = col_name.replace('_', ' ').title()
+                    label = COLUMN_DISPLAY_LABELS.get(col_name, default_label)
 
-            input("\nTekan Enter untuk melanjutkan ke pencarian berikutnya...")
+                    if col_name in MULTILINE_COLUMNS:
+                        print(f"\n{label}:")
+                        indented_value = "\n".join(["  " + line.strip() for line in str(value_display).splitlines()])
+                        print(indented_value if indented_value.strip() else "  N/A")
+                    else:
+                        print(f"{label}: {value_display}")
+                print("=" * 25)
+        else:
+            print("\nTidak ada hasil yang cocok ditemukan.")
+
+        input("\nTekan Enter untuk pencarian berikutnya...")
 
     print("\nProgram pencarian selesai.")
     input("Tekan Enter untuk keluar...")
+
+if __name__ == "__main__":
+    main()

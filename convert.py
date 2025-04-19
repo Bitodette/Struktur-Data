@@ -3,12 +3,12 @@ import sqlite3
 import os
 
 # --- Variabel Konfigurasi ---
-excel_file_path = r"C:\Users\Literataa\Downloads\Struktur_Data_Dataset_Kelas_A_B_C (46).xlsx"
+excel_file_path = r"C:\Users\Literataa\Downloads\Struktur_Data_Dataset_Kelas_A_B_C (51).xlsx"
 excel_sheet_name = 'Sheet1'
 sqlite_db_path = 'papers_database.db'
 table_name = 'papers'
 if_exists_option = 'replace' # Untuk replace tabel jika sudah ada
-excel_header_row = 0 # Baris di Excel tempat header berada (dimulai dari index 0)
+excel_header_row = 0 # baris pertama (index 0) = header
 
 def convert_xlsx_to_sqlite(excel_path, sheet_name, header_row, db_path, table_name, if_exists='fail'):
     """Membaca data dari file Excel dan menyimpannya ke tabel SQLite."""
@@ -17,7 +17,7 @@ def convert_xlsx_to_sqlite(excel_path, sheet_name, header_row, db_path, table_na
     print(f"Mencari Header di baris Excel ke-{header_row + 1} (indeks {header_row})")
 
     try:
-        # Membaca file Excel menggunakan Pandas
+        # Membaca file
         df = pd.read_excel(excel_path, sheet_name=sheet_name, header=header_row)
         print(f"Berhasil membaca {len(df)} baris data dari Excel.")
 
@@ -26,23 +26,12 @@ def convert_xlsx_to_sqlite(excel_path, sheet_name, header_row, db_path, table_na
         df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_').str.replace(r'[^a-z0-9_]', '', regex=True)
         cleaned_columns = df.columns.tolist()
 
-        print("\nNama Kolom Asli dari Excel:")
-        print(original_columns)
-        print("\nNama Kolom Setelah Dibersihkan:")
-        print(cleaned_columns)
-        print("-" * 30)
-
-        # Menghapus kolom 'unnamed' jika ada setelah pembersihan
+        # Menghapus kolom 'unnamed' jika ada
         columns_to_drop = ['unnamed_11', 'unnamed_12']
         existing_columns_to_drop = [col for col in columns_to_drop if col in df.columns]
 
         if existing_columns_to_drop:
-            print(f"Menghapus kolom: {existing_columns_to_drop}")
             df = df.drop(columns=existing_columns_to_drop)
-            print("Kolom berhasil dihapus.")
-            print("\nNama Kolom Setelah Penghapusan:")
-            print(df.columns.tolist())
-            print("-" * 30)
         else:
             print(f"Kolom {columns_to_drop} tidak ditemukan, tidak ada yang dihapus.")
             print("-" * 30)
@@ -71,11 +60,11 @@ def convert_xlsx_to_sqlite(excel_path, sheet_name, header_row, db_path, table_na
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor() 
 
-        print(f"Menulis data ke tabel '{table_name}' (Mode: {if_exists})...")
+        print(f"Menulis data ke tabel {table_name}")
         # Menulis DataFrame ke tabel SQLite
         df.to_sql(table_name, conn, if_exists=if_exists, index=False)
 
-        print(f"Berhasil mengonversi data ke tabel '{table_name}' di '{db_path}'.")
+        print(f"Berhasil")
         conn.commit() # Commit perubahan
 
     except sqlite3.Error as e:
@@ -90,7 +79,7 @@ def convert_xlsx_to_sqlite(excel_path, sheet_name, header_row, db_path, table_na
         # Menutup koneksi database
         if conn:
             conn.close()
-            print("Koneksi database ditutup.")
+            print("Tutup koneksi db.")
 
 # --- Eksekusi Konversi ---
 if __name__ == "__main__":
@@ -106,4 +95,4 @@ if __name__ == "__main__":
             table_name=table_name,
             if_exists=if_exists_option
         )
-        print("\nProses konversi selesai.")
+        print("\nkonversi selesai.")
