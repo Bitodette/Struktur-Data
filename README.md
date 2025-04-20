@@ -41,7 +41,7 @@ Repositori ini berisi program Python untuk mencari data paper akademik menggunak
 ## Sumber Data
 
 - Data diambil otomatis dari Google Spreadsheet:  
-  [Sheet CSV Link](https://docs.google.com/spreadsheets/d/17ru4XAU2NloE9Dfxr2PC1BVcsYkLLT5r7nPSsiOFlvQ/export?format=csv&gid=743838712)
+  [Sheet CSV Link](https://docs.google.com/spreadsheets/d/17ru4XAU2NloE9Dfxr2PC1BVcsYkLLT5r7nPSsiOFlvQ/edit?gid=743838712#gid=743838712)
 
 ---
 
