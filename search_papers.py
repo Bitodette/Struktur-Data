@@ -39,7 +39,7 @@ LABELS = {
 MULTILINE = {COL_ABSTRAK, COL_KESIMPULAN}
 
 def clear():
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system('cls')
 
 def load_data(url):
     print("Mengambil data dari URL...")
